@@ -1,0 +1,42 @@
+[
+  {
+    "id": 1767085394885,
+    "name": "a",
+    "grade": "a",
+    "type": "dilek",
+    "text": "a",
+    "date": "30.12.2025"
+  },
+  {
+    "id": 1767083294672,
+    "name": "a",
+    "grade": "veli",
+    "type": "dilek",
+    "text": "a",
+    "date": "30.12.2025"
+  },
+  {
+    "id": 1767083182166,
+    "name": "a",
+    "grade": "1",
+    "type": "dilek",
+    "text": "a",
+    "date": "30.12.2025"
+  },
+  {
+    "id": 1767083030773,
+    "name": "a",
+    "grade": "",
+    "type": "dilek",
+    "text": "a",
+    "date": "30.12.2025"
+  },
+  {
+    "id": 1767082946139,
+    "name": "aydınSezer",
+    "grade": "veli",
+    "type": "oneri",
+    "text": "tenefüs saatlerini biraz daha kısabilirsiniz\n",
+    "date": "30.12.2025"
+  }
+]
