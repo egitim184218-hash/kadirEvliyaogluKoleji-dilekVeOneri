@@ -42,16 +42,19 @@ export default function Home() {
   useEffect(() => {
     fetch('/api/messages')
       .then(res => res.json())
-      .then(data => setMessages(data))
+      .then(data => {
+        // Robust data cleaning for Supabase/Postgres
+        if (Array.isArray(data)) {
+          setMessages(data);
+        }
+      })
       .catch(err => console.error("Veri hatası:", err));
 
-    // Check system preference
     if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
       setDarkMode(true);
     }
   }, []);
 
-  // Update Dark Mode Class
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
@@ -79,7 +82,6 @@ export default function Home() {
   const handleSubmit = async () => {
     if (!formData.message.trim()) return alert("Lütfen bir mesaj yazın.");
 
-    // Validate Identity
     const gradeString = calculateIdentityString();
     if (!gradeString) {
       if (identityCategory === 'student') return alert("Lütfen sınıf ve şube seçiniz.");
@@ -103,17 +105,18 @@ export default function Home() {
       });
       const savedMessage = await res.json();
 
-      setMessages([savedMessage, ...messages]);
-      setFormData({ name: "", type: "dilek", message: "" });
-      // Reset Identity Selection defaults
-      if (identityCategory === 'student') {
-        setSelectedGrade("");
-        setSelectedBranch("");
+      if (savedMessage && savedMessage.id) {
+        setMessages(prev => [savedMessage, ...prev]);
+        setFormData({ name: "", type: "dilek", message: "" });
+        if (identityCategory === 'student') {
+          setSelectedGrade("");
+          setSelectedBranch("");
+        }
+        triggerConfetti();
+        setShowSuccessModal(true);
+      } else {
+        alert("Mesaj gönderildi ancak kaydedilirken bir sorun oluştu.");
       }
-
-      // Başarı Efektleri
-      triggerConfetti();
-      setShowSuccessModal(true);
     } catch (error) {
       console.error(error);
       alert("Bir hata oluştu.");
@@ -148,8 +151,14 @@ export default function Home() {
 
   const handleDelete = async (id: number) => {
     if (!confirm("Silmek istediğinize emin misiniz?")) return;
-    await fetch(`/api/messages?id=${id}`, { method: 'DELETE' });
-    setMessages(messages.filter(m => m.id !== id));
+    try {
+      const res = await fetch(`/api/messages?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setMessages(messages.filter(m => m.id !== id));
+      }
+    } catch (err) {
+      alert("Silme işlemi başarısız.");
+    }
   };
 
   // --- Render ---
@@ -199,33 +208,39 @@ export default function Home() {
             </div>
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {messages.map((msg) => (
-                <div key={msg.id} className={`p-6 rounded-2xl shadow-sm border flex flex-col hover:shadow-md transition-shadow ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
-                  <div className="flex justify-between items-start mb-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${msg.type === 'dilek' ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20' :
-                      msg.type === 'oneri' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' :
-                        'bg-orange-500/10 text-orange-500 border border-orange-500/20'
-                      }`}>
-                      {msg.type}
-                    </span>
-                    <span className="text-xs font-medium opacity-60">{msg.date}</span>
-                  </div>
-                  <p className="mb-6 flex-grow whitespace-pre-wrap leading-relaxed text-sm opacity-90">{msg.text}</p>
-                  <div className={`border-t pt-4 mt-auto flex justify-between items-center ${darkMode ? 'border-slate-700' : 'border-slate-50'}`}>
-                    <div className="text-sm font-semibold flex flex-col">
-                      <span>{msg.name}</span>
-                      <span className="opacity-60 font-normal text-xs">{msg.grade}</span>
+              {messages.length === 0 ? (
+                <div className="col-span-full text-center py-20 opacity-50">Henüz mesaj bulunmuyor.</div>
+              ) : (
+                messages.map((msg) => (
+                  <div key={msg.id} className={`p-6 rounded-2xl shadow-sm border flex flex-col hover:shadow-md transition-shadow ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+                    <div className="flex justify-between items-start mb-4">
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${msg.type === 'dilek' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
+                          msg.type === 'oneri' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                            'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                        }`}>
+                        {msg.type}
+                      </span>
+                      <span className="text-xs font-medium opacity-60 text-slate-400">{msg.date}</span>
                     </div>
-                    <button
-                      onClick={() => handleDelete(msg.id)}
-                      className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-colors text-sm font-medium flex items-center gap-1"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                      Sil
-                    </button>
+                    <p className={`mb-6 flex-grow whitespace-pre-wrap leading-relaxed text-sm ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>
+                      {msg.text || msg.message || "Mesaj içeriği boş"}
+                    </p>
+                    <div className={`border-t pt-4 mt-auto flex justify-between items-center ${darkMode ? 'border-slate-700' : 'border-slate-100'}`}>
+                      <div className="text-sm font-semibold flex flex-col">
+                        <span className={darkMode ? 'text-white' : 'text-slate-900'}>{msg.name}</span>
+                        <span className="opacity-60 font-normal text-xs text-slate-400">{msg.grade}</span>
+                      </div>
+                      <button
+                        onClick={() => handleDelete(msg.id)}
+                        className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-colors text-sm font-medium flex items-center gap-1"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        Sil
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           )}
         </div>
@@ -240,7 +255,6 @@ export default function Home() {
       <header className={`sticky top-0 z-30 shadow-sm transition-colors ${darkMode ? 'bg-slate-800 border-b border-slate-700' : 'bg-white border-b border-gray-200'}`}>
         <div className="max-w-4xl mx-auto px-4 py-4 flex flex-col md:flex-row items-center md:items-start justify-between">
 
-          {/* Logo ve Başlık */}
           <div className="flex flex-col items-center md:items-start flex-grow text-center md:text-left">
             <div className="flex items-center gap-4 mb-2">
               <div className="bg-white p-1 rounded-xl shadow-sm">
@@ -258,16 +272,14 @@ export default function Home() {
                   Kadir Evliyaoğlu Koleji
                 </h1>
                 <p className={`font-semibold text-sm mt-1 border-b-2 border-red-500 inline-block pb-0.5 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>
-                  Software Engineer: Süleyman Buğra Lök & Kerem Utku TERCAN
+                  Software Engineer: Kerem Utku TERCAN
                 </p>
               </div>
             </div>
             <p className={`text-sm font-medium mt-1 opacity-70 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Dilek, Öneri ve Şikayet Kutusu</p>
           </div>
 
-          {/* Sağ Üst Kontroller */}
           <div className="flex items-center gap-3 mt-4 md:mt-0">
-            {/* Dark Mode Toggle */}
             <button
               onClick={() => setDarkMode(!darkMode)}
               className={`p-2.5 rounded-full transition-all ${darkMode ? 'bg-slate-700 text-yellow-400 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
@@ -276,7 +288,6 @@ export default function Home() {
               {darkMode ? '☀️' : '🌙'}
             </button>
 
-            {/* Yönetici Girişi Butonu */}
             <button
               onClick={() => setIsAdminOpen(true)}
               className="bg-[#c62828] text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-[#b71c1c] transition-colors shadow-lg shadow-red-900/20 flex items-center gap-2"
@@ -297,7 +308,6 @@ export default function Home() {
             <div className="space-y-4">
               <h3 className="text-xs font-black opacity-50 uppercase tracking-widest">KİMLİK TÜRÜ</h3>
 
-              {/* Ana Kategoriler */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
                   { id: 'student', label: 'Öğrenci', icon: '🎓' },
@@ -309,8 +319,8 @@ export default function Home() {
                     key={item.id}
                     onClick={() => setIdentityCategory(item.id as any)}
                     className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all duration-200 ${identityCategory === item.id
-                      ? 'border-[#c62828] bg-red-500/10 text-[#c62828]'
-                      : `border-transparent ${darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`
+                        ? 'border-[#c62828] bg-red-500/10 text-[#c62828]'
+                        : `border-transparent ${darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`
                       }`}
                   >
                     <span className="text-2xl">{item.icon}</span>
@@ -319,7 +329,6 @@ export default function Home() {
                 ))}
               </div>
 
-              {/* Öğrenci Detay Seçimi */}
               {identityCategory === 'student' && (
                 <div className={`p-4 rounded-xl border animate-fade-in mt-4 ${darkMode ? 'bg-slate-700/50 border-slate-600' : 'bg-slate-50 border-slate-200'}`}>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -347,10 +356,10 @@ export default function Home() {
                             key={branch}
                             onClick={() => setSelectedBranch(branch)}
                             className={`flex-1 py-2 rounded-lg font-bold text-sm border transition-all ${selectedBranch === branch
-                              ? 'bg-[#c62828] text-white border-[#c62828]'
-                              : darkMode
-                                ? 'bg-slate-800 text-slate-300 border-slate-600 hover:bg-slate-700'
-                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                                ? 'bg-[#c62828] text-white border-[#c62828]'
+                                : darkMode
+                                  ? 'bg-slate-800 text-slate-300 border-slate-600 hover:bg-slate-700'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
                               }`}
                           >
                             {branch}
@@ -363,7 +372,6 @@ export default function Home() {
               )}
             </div>
 
-            {/* 2. Ad Soyad */}
             <div className="space-y-2">
               <label className="text-xs font-black opacity-50 uppercase tracking-widest">KİŞİSEL BİLGİLER</label>
               <input
@@ -376,7 +384,6 @@ export default function Home() {
               />
             </div>
 
-            {/* 3. Mesaj Türü */}
             <div className="space-y-2">
               <label className="text-xs font-black opacity-50 uppercase tracking-widest">MESAJ İÇERİĞİ</label>
               <div className="grid grid-cols-3 gap-3">
@@ -389,8 +396,8 @@ export default function Home() {
                     key={t.id}
                     onClick={() => setFormData({ ...formData, type: t.id as any })}
                     className={`py-3 rounded-xl text-sm font-bold transition-all border ${formData.type === t.id
-                      ? `bg-${t.color}-500/10 text-${t.color}-500 border-${t.color}-500/50 ring-1 ring-${t.color}-500/50`
-                      : `border-transparent ${darkMode ? 'bg-slate-700 text-slate-400 hover:bg-slate-600' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`
+                        ? `bg-${t.color}-500/10 text-${t.color}-400 border-${t.color}-500/50 ring-1 ring-${t.color}-500/50`
+                        : `border-transparent ${darkMode ? 'bg-slate-700 text-slate-400 hover:bg-slate-600' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`
                       }`}
                   >
                     {t.label}
@@ -408,7 +415,6 @@ export default function Home() {
               ></textarea>
             </div>
 
-            {/* Gönder Butonu */}
             <button
               onClick={handleSubmit}
               disabled={isSubmitting}
