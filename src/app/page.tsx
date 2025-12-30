@@ -258,7 +258,7 @@ export default function Home() {
                   Kadir Evliyaoğlu Koleji
                 </h1>
                 <p className={`font-semibold text-sm mt-1 border-b-2 border-red-500 inline-block pb-0.5 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>
-                  Bu Projenin Yazılım Mühendisi: Kerem Utku TERCAN
+                  Software Engineer: Süleyman Buğra Lök & Kerem Utku TERCAN
                 </p>
               </div>
             </div>
